@@ -174,6 +174,10 @@ where
 
         /* Handle responses from drawing nodes */
 
+        // Some responses generate additional responses when processed. These
+        // are stored here to report them back to the user.
+        let mut extra_responses : Vec<NodeResponse<UserResponse>> = Vec::new();
+
         for response in delayed_responses.iter().copied() {
             match response {
                 NodeResponse::ConnectEventStarted(node_id, port) => {
@@ -205,7 +209,8 @@ where
                     self.selected_node = Some(node_id);
                 }
                 NodeResponse::DeleteNode(node_id) => {
-                    self.graph.remove_node(node_id);
+                    let (ins, _) = self.graph.remove_node(node_id);
+                    extra_responses.extend(ins.into_iter().map(NodeResponse::DisconnectEvent));
                     self.node_positions.remove(node_id);
                     // Make sure to not leave references to old nodes hanging
                     if self.selected_node.map(|x| x == node_id).unwrap_or(false) {
@@ -237,6 +242,11 @@ where
                 }
             }
         }
+
+        // Push any responses that were generated during response handling.
+        // These are only informative for the end-user and need no special
+        // treatment here.
+        delayed_responses.extend(extra_responses);
 
         /* Mouse input handling */
 
